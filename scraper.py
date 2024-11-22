@@ -354,11 +354,30 @@ def save_on_database(c, page, numberOfPages, id, issn, title, language, subject,
 
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    cursor.execute("SELECT id FROM registers WHERE id = ?", (id,))
+    cursor.execute("SELECT id, language, subject FROM registers WHERE id = ?", (id,))
     vef = cursor.fetchone()
 
     if vef:
-        print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTRED_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTRED_EX}ja esta salvo no banco ({Fore.LIGHTWHITE_EX}{subject}{Fore.LIGHTRED_EX}, {Fore.LIGHTWHITE_EX}{language}{Fore.LIGHTRED_EX})\n")
+        thereIsChange = False
+        newLanguage = vef[1]
+        newSubject = vef[2]
+
+        if not language in vef[1]:
+            newLanguage = vef[1] + f', {language}'
+            thereIsChange = True
+
+        if not subject in vef[2]:
+            newSubject = vef[2] + f', {subject}'
+            thereIsChange = True
+
+        if thereIsChange == True:
+            cursor.execute("UPDATE registers SET language = ?, subject = ? WHERE id = ?", (newLanguage, newSubject, id))
+            database.commit()
+
+            print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTCYAN_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTCYAN_EX}ha um novo valor encontrado, atualizado para ({Fore.LIGHTWHITE_EX}{newSubject}{Fore.LIGHTCYAN_EX} : {Fore.LIGHTWHITE_EX}{newLanguage}{Fore.LIGHTCYAN_EX})\n")
+        else:
+            print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTRED_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTRED_EX}ja esta salvo no banco ({Fore.LIGHTWHITE_EX}{subject}{Fore.LIGHTRED_EX} : {Fore.LIGHTWHITE_EX}{language}{Fore.LIGHTRED_EX})\n")
+
     else:
         cursor.execute('INSERT INTO registers VALUES (?,?,?,?,?,?,?,?,?,?)', (
             id,
@@ -373,7 +392,7 @@ def save_on_database(c, page, numberOfPages, id, issn, title, language, subject,
             date
         ))
         database.commit()
-        print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTGREEN_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTGREEN_EX}foi salvo no banco ({Fore.LIGHTWHITE_EX}{subject}{Fore.LIGHTGREEN_EX}, {Fore.LIGHTWHITE_EX}{language}{Fore.LIGHTGREEN_EX})\n")
+        print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTGREEN_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTGREEN_EX}foi salvo no banco ({Fore.LIGHTWHITE_EX}{subject}{Fore.LIGHTGREEN_EX} : {Fore.LIGHTWHITE_EX}{language}{Fore.LIGHTGREEN_EX})\n")
 
 def show_menu(options, title):
     """
