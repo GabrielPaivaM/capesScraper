@@ -49,6 +49,7 @@ cursor.execute("""
         open_access TEXT, 
         reviewed TEXT, 
         link Text,
+        linkPublisher Text,
         date DATE
     );
 """)
@@ -260,53 +261,71 @@ def scrapeSite(subjectsList, languagesList):
             soup = BeautifulSoup(site.content, 'html.parser')
             print(Fore.LIGHTGREEN_EX + subject + " - " + language)
 
-            divMaxResults = soup.find('div', class_='row mb-4')
+            divMaxResults = soup.find('div', class_='pagination-information d-none d-sm-flex')
 
-            if divMaxResults:
-                divMaxResults = divMaxResults.get_text().strip()
-                numberOfPages = re.search(r'para\s*(\d+)', divMaxResults)
-                print(f"{Fore.LIGHTCYAN_EX}Numero de registros: {Fore.LIGHTWHITE_EX}{numberOfPages.group(1)}")
+            spanMaxResults = divMaxResults.find('span', class_='total')
 
-                if int(numberOfPages.group(1)) <= 30:
+            if spanMaxResults:
+                spanMaxResults = spanMaxResults.get_text().strip()
+                numberOfPages = spanMaxResults
+                print(f"{Fore.LIGHTCYAN_EX}Numero de registros: {Fore.LIGHTWHITE_EX}{numberOfPages}")
+
+                if int(numberOfPages) <= 30:
                     numberOfPages = 1
                 else:
-                    numberOfPages = math.ceil(int(numberOfPages.group(1))/30)
+                    numberOfPages = math.ceil(int(numberOfPages)/30)
 
                 print(f"{Fore.LIGHTCYAN_EX}Numero de paginas : {Fore.LIGHTWHITE_EX}" + str(numberOfPages) + "\n")
             else:
                 numberOfPages = None
                 print(f"{Fore.LIGHTRED_EX}A area {Fore.LIGHTWHITE_EX}{subject}{Fore.LIGHTRED_EX} no idioma {Fore.LIGHTWHITE_EX}{language}{Fore.LIGHTRED_EX} não existe\n")
 
-            if divMaxResults:
+            if spanMaxResults:
                 for page in range(1, numberOfPages + 1):
                     url = f"https://www-periodicos-capes-gov-br.ez106.periodicos.capes.gov.br/index.php/acervo/lista-a-z-periodicos.html?q=&source=resources&areas%5B%5D=areas%3D%3D{subject}&language%5B%5D=language%3D%3D{language}&page={page}"
                     site = requests.get(url, headers=headers)
                     soup = BeautifulSoup(site.content, 'html.parser')
 
-                    divsOfResults = soup.find_all("div", class_="col-sm-12 mb-5 result-busca")
-                    for div in divsOfResults:
-
+                    divsOfResults = soup.find_all("div", class_="col-md-12 br-item")
+                    for div_ in divsOfResults:
                         # Codigo para pegar a informação de acesso aberto
-                        openAccess = div.find('span', class_='open-acess ml-2')
+                        openAccess = div_.find('span', title = 'Acesso aberto')
                         if openAccess:
-                            openAccess = openAccess.get_text().strip()
+                            openAccess = "Acesso aberto"
+                        else:
+                            openAccess = "null"
+
+                        # Codigo para pegar a informação de revisado por partes
+                        peerReviewed = div_.find('span', title = 'Revisado por pares')
+                        if peerReviewed:
+                            peerReviewed = "Revisado por pares"
+                        else:
+                            peerReviewed = "null"
+
 
                         # Codigo para pegar a informação de titulo, link e ID
-                        title = div.find('a', class_='titulo-busca')
+                        title = div_.find('a', class_='titulo-busca')
                         if title:
                             link = title.get('href')
                             title = title.get_text().strip()
                             id = link.split('id=')[1]
+                        else:
+                            link = "null"
+                            title = "null"
+                            id = "null"
+
+                        linkPublisher = div_.find('a', class_='br-button small link-default add-metrics mr-3')
+                        if linkPublisher:
+                            linkPublisher = linkPublisher.get('href')
+                        else:
+                            linkPublisher = "null"
 
                         # Codigo para pegar a informação de editora
-                        publisher = div.find_all('p', class_='small')
+                        publisher = div_.find_all('p', class_='text-down-01')
                         if publisher:
-                            publisher = publisher[2].get_text().strip().replace('- ', '')
-
-                        # Codigo para pegar a informação de revisado por partes
-                        peerReviewed = div.find("p", class_="peerreviewed mt-2")
-                        if peerReviewed:
-                            peerReviewed = peerReviewed.get_text().strip()[:18]
+                            publisher = publisher[0].get_text().strip()
+                        else:
+                            publisher = "null"
 
                         # Pegando o ISSN dentro da pagina
                         url = f"https://www-periodicos-capes-gov-br.ez106.periodicos.capes.gov.br/index.php/acervo/buscador.html?task=detalhes&source=resources&id={id}"
@@ -317,37 +336,40 @@ def scrapeSite(subjectsList, languagesList):
                         if issn:
                             issn = issn[0].get_text().strip()
                         c +=1
-                        save_on_database(c, page, numberOfPages, id, issn, title, language, subject, publisher, openAccess, peerReviewed, link)
+                        save_on_database(c, page, numberOfPages, id, issn, title, language, subject, publisher, openAccess, peerReviewed, link, linkPublisher)
                         variable_to_alter_languages_list = languages
 
 
-def save_on_database(c, page, numberOfPages, id, issn, title, language, subject, publisher, open_access, reviewed, link):
+def save_on_database(c, page, numberOfPages, id, issn, title, language, subject, publisher, open_access, reviewed, link, linkPublisher):
     if not id or id == '':
-        id = None
+        id = 'null'
 
     if not issn or issn == '':
-        issn = None
+        issn = 'null'
 
     if not title or title == '':
-        title = None
+        title = 'null'
 
     if not language or language == '':
-        language = None
+        language = 'null'
 
     if not subject or subject == '':
-        subject = None
+        subject = 'null'
 
     if not publisher or publisher == '':
-        publisher = None
+        publisher = 'null'
 
     if not open_access or open_access == '':
-        open_access = None
+        open_access = 'null'
 
     if not reviewed or reviewed == '':
-        reviewed = None
+        reviewed = 'null'
 
     if not link or link == '':
-        link = None
+        link = 'null'
+
+    if not linkPublisher or linkPublisher == '':
+        linkPublisher = 'null'
 
     subject = subject.replace('%2F', '/').replace('+', ' ')
     language = language.replace('+', ' ')
@@ -374,12 +396,12 @@ def save_on_database(c, page, numberOfPages, id, issn, title, language, subject,
             cursor.execute("UPDATE registers SET language = ?, subject = ? WHERE id = ?", (newLanguage, newSubject, id))
             database.commit()
 
-            print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTCYAN_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTCYAN_EX}ha um novo valor encontrado, atualizado para ({Fore.LIGHTWHITE_EX}{newSubject}{Fore.LIGHTCYAN_EX} : {Fore.LIGHTWHITE_EX}{newLanguage}{Fore.LIGHTCYAN_EX})\n")
+            print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTCYAN_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTCYAN_EX}ha um novo valor encontrado, atualizado para ({Fore.LIGHTWHITE_EX}{newSubject}{Fore.LIGHTCYAN_EX} : {Fore.LIGHTWHITE_EX}{newLanguage}{Fore.LIGHTCYAN_EX})")
         else:
-            print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTRED_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTRED_EX}ja esta salvo no banco ({Fore.LIGHTWHITE_EX}{subject}{Fore.LIGHTRED_EX} : {Fore.LIGHTWHITE_EX}{language}{Fore.LIGHTRED_EX})\n")
+            print(f"{Fore.LIGHTWHITE_EX}{c} Pagina {page}/{numberOfPages}: {Fore.LIGHTRED_EX}registro de id {Fore.LIGHTWHITE_EX}{id} {Fore.LIGHTRED_EX}ja esta salvo no banco ({Fore.LIGHTWHITE_EX}{subject}{Fore.LIGHTRED_EX} : {Fore.LIGHTWHITE_EX}{language}{Fore.LIGHTRED_EX})")
 
     else:
-        cursor.execute('INSERT INTO registers VALUES (?,?,?,?,?,?,?,?,?,?)', (
+        cursor.execute('INSERT INTO registers VALUES (?,?,?,?,?,?,?,?,?,?,?)', (
             id,
             issn,
             title,
@@ -389,6 +411,7 @@ def save_on_database(c, page, numberOfPages, id, issn, title, language, subject,
             open_access,
             reviewed,
             link,
+            linkPublisher,
             date
         ))
         database.commit()
